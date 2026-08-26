@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>레슨방 관리</title>
+</head>
+
+<body>
+  <h1>레슨방 관리</h1>
+
+  <h2>레슨방 등록</h2>
+
+  <form action="/rooms" method="POST">
+
+    <p>레슨방 이름</p>
+    <input type="text" name="room_name" id="">
+
+    <p>코치 이름</p>
+    <input type="text" name="coach_name" id="">
+
+    <p>요일</p>
+    <label for="">
+      <input type="checkbox" name="days" value="월">월
+    </label>
+    <label for="">
+      <input type="checkbox" name="days" value="화">화
+    </label>
+    <label for="">
+      <input type="checkbox" name="days" value="수">수
+    </label>
+    <label for="">
+      <input type="checkbox" name="days" value="목">목
+    </label>
+    <label for="">
+      <input type="checkbox" name="days" value="금">금
+    </label>
+    <label for="">
+      <input type="checkbox" name="days" value="토">토
+    </label>
+    <label for="">
+      <input type="checkbox" name="days" value="일">일
+    </label>
+
+    <p>시작 시간</p>
+    <input type="text" name="start_time" id="">
+
+    <p>종료 시간</p>
+    <input type="text" name="end_time" id="">
+
+    <p>정원</p>
+    <input type="number" name="capacity" id="" min="1">
+
+    <p>레슨비</p>
+    <input type="number" name="lesson_fee" id="" min="0">
+
+    <br><br>
+
+    <button>레슨방 등록</button>
+  </form>
+  <hr>
+
+  <h2>등록된 레슨방</h2>
+  <% rooms.forEach(room=> { %>
+    <div>
+
+      <h3>
+        <%= room.room_name %>
+      </h3>
+
+      <p>코치 : <%= room.coach_name %>
+      </p>
+
+      <p>요일 : <%= room.days %>
+      </p>
+
+      <p>
+        시간 :
+        <%= room.start_time %>
+          ~
+          <%= room.end_time %>
+      </p>
+
+      <p>
+        정원 :
+        <%= room.capacity %>명
+      </p>
+
+      <p>
+        레슨비 :
+        <%= room.lesson_fee %>원
+      </p>
+
+      <a href="/rooms/<%= room.id %>/edit">
+        <button type="button">수정</button>
+      </a>
+    </div>
+
+    <hr>
+    <% }); %>
+
+</body>
+
+</html>

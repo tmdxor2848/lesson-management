@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>레슨방 수정</title>
+</head>
+
+<body>
+  <h1>레슨방 수정</h1>
+
+  <form action="/rooms/<%= room.id %>/edit" method="POST">
+
+    <p>레슨방 이름</p>
+    <input type="text" name="room_name" value="<%= room.room_name %>">
+
+    <p>코치 이름</p>
+    <input type="text" name="coach_name" value="<%= room.coach_name %>">
+
+    <p>요일</p>
+    <input type="text" name="days" value="<%= room.days %>">
+
+    <p>시작 시간</p>
+    <input type="time" name="start_time" value="<%= room.start_time.slice(0, 5) %>">
+
+    <p>종료 시간</p>
+    <input type="time" name="end_time" value="<%= room.end_time.slice(0, 5) %>">
+
+    <p>정원</p>
+    <input type="number" name="capacity" value="<%= room.capacity %>">
+
+    <p>레슨비</p>
+    <input type="number" name="lesson_fee" value="<%= room.lesson_fee %>">
+
+    <br><br>
+
+    <button type="submit">수정완료</button>
+  </form>
+
+  <a href="/rooms">
+    <button type="button">취소</button>
+  </a>
+</body>
+
+</html>
