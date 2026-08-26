@@ -11,10 +11,14 @@ app.use(express.urlencoded({ extended: true }));
 
 // 서버가 사용할 포트
 const PORT = 3000;
+
 // 브라우저에서 http://localhost:3000/--- 로 들어오면 무엇을 보여줄지 정함
+
+// 메인화면
 app.get('/', (req, res) => {
   res.sendFile(__dirname + '/views/main.html');
 });
+
 app.get('/rooms', (req, res) => {
   // res.sendFile(__dirname + '/views/rooms.html');
   // 레슨방 목록 불러오기.
@@ -34,6 +38,10 @@ app.get('/rooms', (req, res) => {
   });
 });
 
+// 회원등록 화면
+app.get('/members', (req, res) => {
+  res.render('members');
+});
 
 // 레슨방 정보 저장
 app.post('/rooms', (req, res) => {
