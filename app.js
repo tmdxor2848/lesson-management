@@ -164,6 +164,45 @@ app.post('/rooms/:id/edit', (req, res) => {
 })
 
 
+// 회원 등록 코드
+app.post('/members', (req, res) => {
+
+  const {
+    name,
+    birth,
+    gender,
+    phone,
+    memo
+  } = req.body;
+
+  const sql = `
+  INSERT INTO members
+  (name, birth, gender, phone, status, joined_date, memo)
+  VALUES (?, ?, ?, ?, 'ACTIVE', CURDATE(), ?)
+  `;
+
+  db.query(
+    sql,
+    [
+      name,
+      birth,
+      gender,
+      phone,
+      memo
+    ],
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.send('회원등록 실패');
+      }
+      console.log('회원 등록 성공');
+      console.log(result);
+
+      res.redirect('/members')
+    }
+  )
+})
+
 // 서버를 켜는 코드
 app.listen(PORT, () => {
   console.log(`서버 실행중: http: localhost:${PORT} `)
