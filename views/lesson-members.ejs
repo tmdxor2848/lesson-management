@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>레슨 회원 등록</title>
+</head>
+
+<body>
+  <h1>레슨 회원 등록</h1>
+
+  <form action="/lesson-members" method="POST">
+
+    <p>연도</p>
+
+    <input type="number" name="year" value="2026" required>
+
+    <p>월</p>
+
+    <select name="month" required>
+
+      <option value="1">1월</option>
+      <option value="2">2월</option>
+      <option value="3">3월</option>
+      <option value="4">4월</option>
+      <option value="5">5월</option>
+      <option value="6">6월</option>
+      <option value="7">7월</option>
+      <option value="8">8월</option>
+      <option value="9">9월</option>
+      <option value="10">10월</option>
+      <option value="11">11월</option>
+      <option value="12">12월</option>
+
+    </select>
+
+    <p>레슨방</p>
+
+    <select name="lesson_room_id" required>
+
+      <% rooms.forEach(room=> { %>
+
+        <option value="<%= room.id %>">
+
+          <%= room.room_name %>
+            /
+            <%= room.coach_name %>
+
+        </option>
+
+        <% }); %>
+
+    </select>
+
+
+    <p>회원</p>
+
+    <select name="member_id" required>
+
+      <% members.forEach(member=> { %>
+
+        <option value="<%= member.id %>">
+
+          <%= member.name %>
+
+        </option>
+
+        <% }); %>
+
+    </select>
+
+
+    <br><br>
+
+    <button type="submit">
+      레슨 등록
+    </button>
+
+  </form>
+  <hr>
+
+  <h2>레슨 명단 조회</h2>
+
+  <form action="/lesson-members" method="GET">
+
+    <label>
+      연도
+
+      <input type="number" name="year" value="<%= selectedYear %>" placeholder="2026">
+    </label>
+
+
+    <label>
+      월
+
+      <select name="month">
+
+        <option value="">전체</option>
+
+        <% for (let i=1; i <=12; i++) { %>
+
+          <option value="<%= i %>" <%=String(selectedMonth)===String(i) ? 'selected' : '' %>
+            >
+            <%= i %>월
+          </option>
+
+          <% } %>
+
+      </select>
+    </label>
+
+
+    <label>
+      레슨방
+
+      <select name="lesson_room_id">
+
+        <option value="">전체</option>
+
+        <% rooms.forEach(room=> { %>
+
+          <option value="<%= room.id %>" <%=String(selectedRoom)===String(room.id) ? 'selected' : '' %>
+            >
+            <%= room.room_name %>
+              /
+              <%= room.coach_name %>
+          </option>
+
+          <% }); %>
+
+      </select>
+    </label>
+
+
+    <button type="submit">
+      조회
+    </button>
+
+
+    <a href="/lesson-members">
+      <button type="button">
+        전체보기
+      </button>
+    </a>
+
+  </form>
+
+
+  <hr>
+
+  <h2>등록된 레슨 명단</h2>
+
+  <% const groupedRooms={}; lessonMembers.forEach(item=> {
+
+    const key =
+    item.year + '-' +
+    item.month + '-' +
+    item.lesson_room_id;
+
+    if (!groupedRooms[key]) {
+
+    groupedRooms[key] = {
+    year: item.year,
+    month: item.month,
+    room_name: item.room_name,
+    coach_name: item.coach_name,
+    members: []
+    };
+
+    }
+
+    groupedRooms[key].members.push(item);
+
+    });
+    %>
+
+
+    <% Object.values(groupedRooms).forEach(group=> { %>
+
+      <div>
+
+        <h3>
+          <%= group.year %>년
+            <%= group.month %>월
+        </h3>
+
+        <h4>
+          <%= group.room_name %>
+            /
+            <%= group.coach_name %> 코치
+        </h4>
+
+        <p>
+          총 <%= group.members.length %>명
+        </p>
+
+
+        <% group.members.forEach((member, index)=> { %>
+
+          <p>
+            <%= index + 1 %>.
+              <%= member.member_name %>
+          </p>
+
+          <% }); %>
+
+      </div>
+
+      <hr>
+
+      <% }); %>
+
+
+
+        <br>
+
+        <a href="/">
+          <button type="button">
+            메인으로
+          </button>
+        </a>
+</body>
+
+</html>

@@ -40,7 +40,95 @@ app.get('/rooms', (req, res) => {
 
 // 회원등록 화면
 app.get('/members', (req, res) => {
-  res.render('members');
+  //res.render('members');
+  const sql = 'SELECT * FROM members ORDER BY id DESC';
+
+  db.query(sql, (err, members) => {
+
+    if (err) {
+      console.log(err);
+      return res.send('회원 목록 불러오기 실패');
+    }
+
+    res.render('members', {
+      members: members
+    });
+
+  });
+
+});
+
+// 회원 정보 수정
+app.get('/members/:id/edit', (req, res) => {
+
+  const id = req.params.id;
+
+  const sql = 'SELECT * FROM members WHERE id = ?';
+
+  db.query(sql, [id], (err, result) => {
+
+    if (err) {
+      console.log(err);
+      return res.send('회원 정보 불러오기 실패');
+    }
+
+    res.render('member-edit', {
+      member: result[0]
+    });
+
+  });
+
+});
+
+app.post('/members/:id/edit', (req, res) => {
+
+  const id = req.params.id;
+
+  const {
+    name,
+    birth,
+    gender,
+    phone,
+    status,
+    memo
+  } = req.body;
+
+  const sql = `
+    UPDATE members
+    SET
+      name = ?,
+      birth = ?,
+      gender = ?,
+      phone = ?,
+      status = ?,
+      memo = ?
+    WHERE id = ?
+  `;
+
+  db.query(
+    sql,
+    [
+      name,
+      birth,
+      gender,
+      phone,
+      status,
+      memo,
+      id
+    ],
+    (err, result) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('회원 수정 실패');
+      }
+
+      console.log('회원 수정 성공!');
+
+      res.redirect('/members');
+    }
+  );
+
 });
 
 // 레슨방 정보 저장
@@ -198,10 +286,229 @@ app.post('/members', (req, res) => {
       console.log('회원 등록 성공');
       console.log(result);
 
-      res.redirect('/members')
+      res.redirect('/members');
     }
-  )
-})
+  );
+});
+
+// 레슨방별 조회
+app.get('/lesson-members', (req, res) => {
+
+  const {
+    year,
+    month,
+    lesson_room_id
+  } = req.query;
+
+  const roomSql = `
+    SELECT *
+    FROM lesson_rooms
+    ORDER BY room_name
+  `;
+
+  const memberSql = `
+    SELECT *
+    FROM members
+    ORDER BY name
+  `;
+
+  let lessonMemberSql = `
+    SELECT
+      lm.id,
+      lm.year,
+      lm.month,
+      lm.lesson_room_id,
+      lm.member_id,
+
+      m.name AS member_name,
+      m.status,
+
+      lr.room_name,
+      lr.coach_name
+
+    FROM lesson_members lm
+
+    JOIN members m
+      ON lm.member_id = m.id
+
+    JOIN lesson_rooms lr
+      ON lm.lesson_room_id = lr.id
+
+    WHERE 1 = 1
+  `;
+
+  const params = [];
+
+  if (year) {
+    lessonMemberSql += ' AND lm.year = ?';
+    params.push(year);
+  }
+
+  if (month) {
+    lessonMemberSql += ' AND lm.month = ?';
+    params.push(month);
+  }
+
+  if (lesson_room_id) {
+    lessonMemberSql += ' AND lm.lesson_room_id = ?';
+    params.push(lesson_room_id);
+  }
+
+  lessonMemberSql += `
+    ORDER BY
+      lm.year DESC,
+      lm.month DESC,
+      lr.room_name,
+      m.name
+  `;
+
+  db.query(roomSql, (err, rooms) => {
+
+    if (err) {
+      console.log(err);
+      return res.send('레슨방 목록 불러오기 실패');
+    }
+
+    db.query(memberSql, (err, members) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('회원 목록 불러오기 실패');
+      }
+
+      db.query(
+        lessonMemberSql,
+        params,
+        (err, lessonMembers) => {
+
+          if (err) {
+            console.log(err);
+            return res.send('레슨 명단 불러오기 실패');
+          }
+
+          res.render('lesson-members', {
+            rooms: rooms,
+            members: members,
+            lessonMembers: lessonMembers,
+
+            selectedYear: year || '',
+            selectedMonth: month || '',
+            selectedRoom: lesson_room_id || ''
+          });
+
+        }
+      );
+
+    });
+
+  });
+
+});
+
+app.post('/lesson-members', (req, res) => {
+
+  const {
+    year,
+    month,
+    lesson_room_id,
+    member_id
+  } = req.body;
+
+  const checkSql = `
+    SELECT *
+    FROM lesson_members
+    WHERE lesson_room_id = ?
+    AND member_id = ?
+    AND year = ?
+    AND month = ?
+  `;
+
+  db.query(
+    checkSql,
+    [
+      lesson_room_id,
+      member_id,
+      year,
+      month
+    ],
+    (err, result) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('중복 확인 실패');
+      }
+
+      if (result.length > 0) {
+        return res.send('이미 해당 월의 레슨방에 등록된 회원입니다.');
+      }
+
+      const insertSql = `
+        INSERT INTO lesson_members
+        (lesson_room_id, member_id, year, month)
+        VALUES (?, ?, ?, ?)
+      `;
+
+      db.query(
+        insertSql,
+        [
+          lesson_room_id,
+          member_id,
+          year,
+          month
+        ],
+        (err, result) => {
+
+          if (err) {
+            console.log(err);
+            return res.send('레슨 회원 등록 실패');
+          }
+
+          const updateStatusSql = `
+            UPDATE members
+            SET status = 'ACTIVE'
+            WHERE id = ?
+            AND status = 'PAUSED'
+          `;
+
+          db.query(
+            updateStatusSql,
+            [member_id],
+            (err, result) => {
+
+              if (err) {
+                console.log(err);
+                return res.send('회원 상태 변경 실패');
+              }
+
+              console.log('레슨 회원 등록 성공!');
+
+              res.redirect('/lesson-members');
+            }
+          );
+
+        }
+      );
+
+    }
+  );
+
+});
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 // 서버를 켜는 코드
 app.listen(PORT, () => {

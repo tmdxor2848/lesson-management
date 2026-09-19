@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>회원 수정</title>
+</head>
+
+<body>
+
+  <h1>회원 수정</h1>
+
+  <form action="/members/<%= member.id %>/edit" method="POST">
+
+    <p>이름</p>
+    <input type="text" name="name" value="<%= member.name %>">
+
+    <p>생년월일</p>
+    <input type="date" name="birth" value="<%= member.birth.toISOString().slice(0, 10) %>">
+
+    <p>성별</p>
+
+    <label>
+      <input type="radio" name="gender" value="남" <%=member.gender==='남' ? 'checked' : '' %>
+      >
+      남
+    </label>
+
+    <label>
+      <input type="radio" name="gender" value="여" <%=member.gender==='여' ? 'checked' : '' %>
+      >
+      여
+    </label>
+
+    <p>전화번호</p>
+    <input type="text" name="phone" value="<%= member.phone %>">
+
+    <p>상태</p>
+
+    <select name="status">
+
+      <option value="ACTIVE" <%=member.status==='ACTIVE' ? 'selected' : '' %>>
+        레슨중
+      </option>
+
+      <option value="PAUSED" <%=member.status==='PAUSED' ? 'selected' : '' %>>
+        휴식중
+      </option>
+
+      <option value="WAITING" <%=member.status==='WAITING' ? 'selected' : '' %>>
+        대기중
+      </option>
+
+      <option value="QUIT" <%=member.status==='QUIT' ? 'selected' : '' %>>
+        탈퇴
+      </option>
+
+    </select>
+
+    <p>메모</p>
+
+    <textarea name="memo" rows="4" cols="40"><%= member.memo || '' %></textarea>
+
+    <br><br>
+
+    <button type="submit">수정 완료</button>
+
+  </form>
+
+  <a href="/members">
+    <button type="button">취소</button>
+  </a>
+
+</body>
+
+</html>
