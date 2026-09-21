@@ -321,6 +321,8 @@ app.get('/lesson-members', (req, res) => {
       lm.member_id,
 
       m.name AS member_name,
+      m.birth,
+      m.gender,
       m.status,
 
       lr.room_name,
@@ -494,6 +496,134 @@ app.post('/lesson-members', (req, res) => {
 
 });
 
+app.post('/lesson-members/:id/delete', (req, res) => {
+
+  const id = req.params.id;
+
+  // 1. 삭제할 레슨 정보 먼저 찾기
+  const findSql = `
+    SELECT member_id, year, month
+    FROM lesson_members
+    WHERE id = ?
+  `;
+
+  db.query(findSql, [id], (err, rows) => {
+
+    if (err) {
+      console.log(err);
+      return res.send('레슨 정보 확인 실패');
+    }
+
+    if (rows.length === 0) {
+      return res.send('해당 레슨 등록 정보가 없습니다.');
+    }
+
+    // 중요: 여기서 변수에 저장
+    const memberId = rows[0].member_id;
+    const lessonYear = rows[0].year;
+    const lessonMonth = rows[0].month;
+
+
+    // 2. 해당 월의 레슨 등록 삭제
+    const deleteSql = `
+      DELETE FROM lesson_members
+      WHERE id = ?
+    `;
+
+    db.query(deleteSql, [id], (err, result) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('레슨 명단 제외 실패');
+      }
+
+
+      // 3. 현재 연도 / 월 확인
+      const today = new Date();
+
+      const currentYear = today.getFullYear();
+      const currentMonth = today.getMonth() + 1;
+
+
+      // 과거 또는 미래 명단이면 회원 상태 변경하지 않음
+      if (
+        Number(lessonYear) !== currentYear ||
+        Number(lessonMonth) !== currentMonth
+      ) {
+
+        return res.redirect('/lesson-members');
+
+      }
+
+
+      // 4. 현재 달에 다른 레슨방이 남아있는지 확인
+      const checkSql = `
+        SELECT COUNT(*) AS count
+        FROM lesson_members
+        WHERE member_id = ?
+        AND year = ?
+        AND month = ?
+      `;
+
+      db.query(
+        checkSql,
+        [
+          memberId,
+          lessonYear,
+          lessonMonth
+        ],
+        (err, rows) => {
+
+          if (err) {
+            console.log(err);
+            return res.send('회원 레슨 상태 확인 실패');
+          }
+
+          const lessonCount = rows[0].count;
+
+
+          // 5. 현재 달 레슨이 하나도 없으면 휴식중
+          if (lessonCount === 0) {
+
+            const updateSql = `
+              UPDATE members
+              SET status = 'PAUSED'
+              WHERE id = ?
+            `;
+
+            db.query(
+              updateSql,
+              [memberId],
+              (err, result) => {
+
+                if (err) {
+                  console.log(err);
+                  return res.send('회원 상태 변경 실패');
+                }
+
+                console.log('회원 상태가 휴식중으로 변경되었습니다.');
+
+                res.redirect('/lesson-members');
+
+              }
+            );
+
+          } else {
+
+            console.log('다른 레슨방이 남아있어 ACTIVE 상태를 유지합니다.');
+
+            res.redirect('/lesson-members');
+
+          }
+
+        }
+      );
+
+    });
+
+  });
+
+});
 
 
 
