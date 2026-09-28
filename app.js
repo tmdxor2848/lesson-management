@@ -326,7 +326,16 @@ app.get('/lesson-members', (req, res) => {
       m.status,
 
       lr.room_name,
-      lr.coach_name
+      lr.coach_name,
+
+      (
+      SELECT COALESCE(SUM(co.carry_count), 0)
+      FROM carry_overs co
+      WHERE co.member_id = lm.member_id
+      AND co.lesson_room_id = lm.lesson_room_id
+      AND co.to_year = lm.year
+      AND co.to_month = lm.month
+    ) AS carry_count
 
     FROM lesson_members lm
 
@@ -625,8 +634,235 @@ app.post('/lesson-members/:id/delete', (req, res) => {
 
 });
 
+app.get('/carry-over/:id', (req, res) => {
+
+  const id = req.params.id;
+
+  const sql = `
+    SELECT
+      lm.id,
+      lm.member_id,
+      lm.lesson_room_id,
+      lm.year,
+      lm.month,
+
+      m.name AS member_name,
+
+      lr.room_name,
+      lr.coach_name
+
+    FROM lesson_members lm
+
+    JOIN members m
+      ON lm.member_id = m.id
+
+    JOIN lesson_rooms lr
+      ON lm.lesson_room_id = lr.id
+
+    WHERE lm.id = ?
+  `;
+
+  db.query(sql, [id], (err, result) => {
+
+    if (err) {
+      console.log(err);
+      return res.send('이월 정보 불러오기 실패');
+    }
+
+    if (result.length === 0) {
+      return res.send('해당 레슨 정보를 찾을 수 없습니다.');
+    }
+
+    res.render('carry-over', {
+      lesson: result[0]
+    });
+
+  });
+
+});
 
 
+app.post('/carry-over/:id', (req, res) => {
+
+  const lessonMemberId = req.params.id;
+  const carryCount = req.body.carry_count;
+
+  // 1. 현재 레슨 등록 정보 찾기
+  const findSql = `
+    SELECT
+      member_id,
+      lesson_room_id,
+      year,
+      month
+    FROM lesson_members
+    WHERE id = ?
+  `;
+
+  db.query(findSql, [lessonMemberId], (err, rows) => {
+
+    if (err) {
+      console.log(err);
+      return res.send('이월 대상 정보 확인 실패');
+    }
+
+    if (rows.length === 0) {
+      return res.send('해당 레슨 정보를 찾을 수 없습니다.');
+    }
+
+    const memberId = rows[0].member_id;
+    const lessonRoomId = rows[0].lesson_room_id;
+
+    const fromYear = Number(rows[0].year);
+    const fromMonth = Number(rows[0].month);
+
+
+    // 2. 다음 달 계산
+    let toYear = fromYear;
+    let toMonth = fromMonth + 1;
+
+    if (toMonth === 13) {
+      toMonth = 1;
+      toYear = fromYear + 1;
+    }
+
+
+    // 3. 이월 기록 저장
+    const carrySql = `
+      INSERT INTO carry_overs
+      (
+        member_id,
+        lesson_room_id,
+        from_year,
+        from_month,
+        to_year,
+        to_month,
+        carry_count
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?)
+    `;
+
+    db.query(
+      carrySql,
+      [
+        memberId,
+        lessonRoomId,
+        fromYear,
+        fromMonth,
+        toYear,
+        toMonth,
+        carryCount
+      ],
+      (err, result) => {
+
+        if (err) {
+          console.log(err);
+          return res.send('이월 정보 저장 실패');
+        }
+
+
+        // 4. 다음 달 레슨 명단 자동 등록
+        const lessonSql = `
+          INSERT INTO lesson_members
+          (
+            lesson_room_id,
+            member_id,
+            year,
+            month
+          )
+          VALUES (?, ?, ?, ?)
+          ON DUPLICATE KEY UPDATE
+            id = id
+        `;
+
+        db.query(
+          lessonSql,
+          [
+            lessonRoomId,
+            memberId,
+            toYear,
+            toMonth
+          ],
+          (err, result) => {
+
+            if (err) {
+              console.log(err);
+              return res.send('다음 달 명단 자동 등록 실패');
+            }
+
+            console.log(
+              `${fromYear}년 ${fromMonth}월 → ` +
+              `${toYear}년 ${toMonth}월 ` +
+              `${carryCount}회 이월 완료`
+            );
+
+            res.redirect(
+              `/lesson-members?year=${toYear}&month=${toMonth}&lesson_room_id=${lessonRoomId}`
+            );
+
+          }
+        );
+
+      }
+    );
+
+  });
+
+});
+
+
+app.get('/carry-over-edit/:id', (req, res) => {
+
+  const lessonMemberId = req.params.id;
+
+  const sql = `
+    SELECT
+      co.id AS carry_id,
+      co.carry_count,
+      co.from_year,
+      co.from_month,
+      co.to_year,
+      co.to_month,
+
+      m.name AS member_name,
+
+      lr.room_name,
+      lr.coach_name
+
+    FROM lesson_members lm
+
+    JOIN carry_overs co
+      ON co.member_id = lm.member_id
+      AND co.lesson_room_id = lm.lesson_room_id
+      AND co.to_year = lm.year
+      AND co.to_month = lm.month
+
+    JOIN members m
+      ON lm.member_id = m.id
+
+    JOIN lesson_rooms lr
+      ON lm.lesson_room_id = lr.id
+
+    WHERE lm.id = ?
+  `;
+
+  db.query(sql, [lessonMemberId], (err, rows) => {
+
+    if (err) {
+      console.log(err);
+      return res.send('이월 정보 불러오기 실패');
+    }
+
+    if (rows.length === 0) {
+      return res.send('이월 정보를 찾을 수 없습니다.');
+    }
+
+    res.render('carry-over-edit', {
+      carry: rows[0]
+    });
+
+  });
+
+});
 
 
 

@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이월 등록</title>
+</head>
+
+<body>
+  <h1>이월 등록</h1>
+
+  <p>
+    회원 :
+    <strong>
+      <%= lesson.member_name %>
+    </strong>
+  </p>
+
+  <p>
+    레슨방 :
+    <%= lesson.room_name %>
+  </p>
+
+  <p>
+    코치 :
+    <%= lesson.coach_name %>
+  </p>
+
+  <p>
+    현재 레슨 :
+    <%= lesson.year %>년
+      <%= lesson.month %>월
+  </p>
+
+  <hr>
+  <form action="/carry-over/<%= lesson.id %>" method="POST">
+
+    <p>이월 횟수</p>
+
+    <input type="number" name="carry_count" min="1" required placeholder="예: 3">
+
+    <br><br>
+
+    <button type="submit">
+      이월 등록
+    </button>
+
+  </form>
+  <a href="/lesson-members">
+    <button type="button">
+      취소
+    </button>
+  </a>
+</body>
+
+</html>
