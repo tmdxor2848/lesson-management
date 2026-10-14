@@ -759,6 +759,7 @@ app.post('/carry-over/:id', (req, res) => {
           return res.send('이월 정보 저장 실패');
         }
 
+        const carryOverId = result.insertId;
 
         // 4. 다음 달 레슨 명단 자동 등록
         const lessonSql = `
@@ -767,11 +768,13 @@ app.post('/carry-over/:id', (req, res) => {
             lesson_room_id,
             member_id,
             year,
-            month
+            month,
+            registration_type,
+            carry_over_id
           )
-          VALUES (?, ?, ?, ?)
+          VALUES (?, ?, ?, ?, 'CARRY', ?)
           ON DUPLICATE KEY UPDATE
-            id = id
+          id = id
         `;
 
         db.query(
@@ -780,7 +783,8 @@ app.post('/carry-over/:id', (req, res) => {
             lessonRoomId,
             memberId,
             toYear,
-            toMonth
+            toMonth,
+            carryOverId
           ],
           (err, result) => {
 
@@ -810,6 +814,7 @@ app.post('/carry-over/:id', (req, res) => {
 });
 
 
+// 이월 정보 블러오기
 app.get('/carry-over-edit/:id', (req, res) => {
 
   const lessonMemberId = req.params.id;
@@ -865,9 +870,69 @@ app.get('/carry-over-edit/:id', (req, res) => {
 });
 
 
+// 이월 수정
+app.post('/carry-over-edit/:id', (req, res) => {
+
+  const carryId = req.params.id;
+  const carryCount = req.body.carry_count;
+
+  const sql = `
+    UPDATE carry_overs
+    SET carry_count = ?
+    WHERE id = ?
+  `;
+
+  db.query(
+    sql,
+    [
+      carryCount,
+      carryId
+    ],
+    (err, result) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('이월 수정 실패');
+      }
+
+      console.log('이월 횟수 수정 성공!');
+
+      res.redirect('/lesson-members');
+
+    }
+  );
+
+});
 
 
+// 이월 취소
+app.post('/carry-over-delete/:id', (req, res) => {
 
+  const carryId = req.params.id;
+
+  const sql = `
+    DELETE FROM carry_overs
+    WHERE id = ?
+  `;
+
+  db.query(
+    sql,
+    [carryId],
+    (err, result) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('이월 취소 실패');
+      }
+
+      console.log('이월 취소 성공!');
+
+      res.redirect('/lesson-members');
+
+    }
+  );
+
+});
 
 
 
