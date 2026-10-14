@@ -910,24 +910,48 @@ app.post('/carry-over-delete/:id', (req, res) => {
 
   const carryId = req.params.id;
 
-  const sql = `
-    DELETE FROM carry_overs
-    WHERE id = ?
+
+  // 1. 이월로 자동 생성된 다음 달 명단 삭제
+  const deleteLessonSql = `
+    DELETE FROM lesson_members
+    WHERE carry_over_id = ?
+    AND registration_type = 'CARRY'
   `;
 
   db.query(
-    sql,
+    deleteLessonSql,
     [carryId],
     (err, result) => {
 
       if (err) {
         console.log(err);
-        return res.send('이월 취소 실패');
+        return res.send('이월 자동등록 명단 삭제 실패');
       }
 
-      console.log('이월 취소 성공!');
 
-      res.redirect('/lesson-members');
+      // 2. 이월 기록 삭제
+      const deleteCarrySql = `
+        DELETE FROM carry_overs
+        WHERE id = ?
+      `;
+
+      db.query(
+        deleteCarrySql,
+        [carryId],
+        (err, result) => {
+
+          if (err) {
+            console.log(err);
+            return res.send('이월 취소 실패');
+          }
+
+          console.log('이월 취소 성공!');
+          console.log('이월 자동등록 명단도 함께 정리되었습니다.');
+
+          res.redirect('/lesson-members');
+
+        }
+      );
 
     }
   );
@@ -935,9 +959,112 @@ app.post('/carry-over-delete/:id', (req, res) => {
 });
 
 
+// 이월자 명단 보기
+app.get('/carry-overs', (req, res) => {
+
+  const {
+    member_name,
+    year,
+    month
+  } = req.query;
 
 
+  let sql = `
+    SELECT
+      co.id,
+      co.from_year,
+      co.from_month,
+      co.to_year,
+      co.to_month,
+      co.carry_count,
+      co.created_at,
 
+      m.name AS member_name,
+
+      lr.room_name,
+      lr.coach_name
+
+    FROM carry_overs co
+
+    JOIN members m
+      ON co.member_id = m.id
+
+    JOIN lesson_rooms lr
+      ON co.lesson_room_id = lr.id
+
+    WHERE 1 = 1
+  `;
+
+
+  const params = [];
+
+
+  if (member_name) {
+
+    sql += `
+      AND m.name LIKE ?
+    `;
+
+    params.push('%' + member_name + '%');
+
+  }
+
+
+  if (year) {
+
+    sql += `
+      AND co.to_year = ?
+    `;
+
+    params.push(year);
+
+  }
+
+
+  if (month) {
+
+    sql += `
+      AND co.to_month = ?
+    `;
+
+    params.push(month);
+
+  }
+
+
+  sql += `
+    ORDER BY
+      co.to_year DESC,
+      co.to_month DESC,
+      m.name
+  `;
+
+
+  db.query(
+    sql,
+    params,
+    (err, carryOvers) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('이월 내역 불러오기 실패');
+      }
+
+
+      res.render('carry-overs', {
+
+        carryOvers: carryOvers,
+
+        selectedName: member_name || '',
+        selectedYear: year || '',
+        selectedMonth: month || ''
+
+      });
+
+    }
+  );
+
+});
 
 
 

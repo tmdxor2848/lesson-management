@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>이월 내역</title>
+</head>
+
+<body>
+
+  <h1>이월 내역</h1>
+  <h2>이월 내역 조회</h2>
+
+  <form action="/carry-overs" method="GET">
+
+    <label>
+      회원 이름
+
+      <input type="text" name="member_name" value="<%= selectedName %>" placeholder="회원 이름">
+    </label>
+
+
+    <label>
+      도착 연도
+
+      <input type="number" name="year" value="<%= selectedYear %>" placeholder="2026">
+    </label>
+
+
+    <label>
+      도착 월
+
+      <select name="month">
+
+        <option value="">전체</option>
+
+        <% for (let i=1; i <=12; i++) { %>
+
+          <option value="<%= i %>" <%=String(selectedMonth)===String(i) ? 'selected' : '' %>
+            >
+            <%= i %>월
+          </option>
+
+          <% } %>
+
+      </select>
+
+    </label>
+
+
+    <button type="submit">
+      조회
+    </button>
+
+
+    <a href="/carry-overs">
+      <button type="button">
+        전체보기
+      </button>
+    </a>
+
+  </form>
+
+  <hr>
+
+
+  <% if (carryOvers.length===0) { %>
+
+    <p>등록된 이월 내역이 없습니다.</p>
+
+    <% } %>
+
+
+      <% carryOvers.forEach(carry=> { %>
+
+        <div>
+
+          <h3>
+            <%= carry.member_name %>
+          </h3>
+
+          <p>
+            레슨방 :
+            <%= carry.room_name %>
+          </p>
+
+          <p>
+            코치 :
+            <%= carry.coach_name %>
+          </p>
+
+          <p>
+            이월 :
+            <%= carry.from_year %>년
+              <%= carry.from_month %>월
+
+                →
+
+                <%= carry.to_year %>년
+                  <%= carry.to_month %>월
+          </p>
+
+          <p>
+            이월 횟수 :
+            <strong>
+              <%= carry.carry_count %>회
+            </strong>
+          </p>
+
+        </div>
+
+        <hr>
+
+        <% }); %>
+
+
+          <a href="/">
+            <button type="button">
+              메인으로
+            </button>
+          </a>
+
+</body>
+
+</html>
