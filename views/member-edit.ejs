@@ -13,6 +13,8 @@
 
   <form action="/members/<%= member.id %>/edit" method="POST">
 
+    <input type="hidden" name="from" value="<%= from %>">
+
     <p>이름</p>
     <input type="text" name="name" value="<%= member.name %>">
 
@@ -62,9 +64,83 @@
 
     <textarea name="memo" rows="4" cols="40"><%= member.memo || '' %></textarea>
 
+
+    <hr>
+
+    <h2>상시 할인 설정</h2>
+
+
+    <label>
+
+      <input type="checkbox" name="discount_active" value="1" <%=discount ? 'checked' : '' %>
+      >
+
+      상시 할인 적용
+
+    </label>
+
+
+    <p>할인 이름</p>
+
+    <input type="text" name="discount_name" value="<%= discount ? discount.discount_name : '' %>"
+      placeholder="예: 레슨반장 할인">
+
+
+    <p>할인 방식</p>
+
+    <select name="discount_type">
+
+      <option value="PERCENT" <%=discount && discount.discount_type==='PERCENT' ? 'selected' : '' %>
+        >
+        퍼센트 할인
+      </option>
+
+      <option value="FIXED" <%=discount && discount.discount_type==='FIXED' ? 'selected' : '' %>
+        >
+        고정 금액 할인
+      </option>
+
+    </select>
+
+
+    <p>할인 값</p>
+
+    <input type="number" name="discount_value" min="0" step="0.01"
+      value="<%= discount ? discount.discount_value : '' %>" placeholder="예: 50">
+
+
+    <p>할인 시작일</p>
+
+    <input type="date" name="discount_start_date" value="<%=
+    discount && discount.start_date
+      ? discount.start_date.toISOString().slice(0, 10)
+      : ''
+  %>">
+
+
+    <p>할인 종료일</p>
+
+    <input type="date" name="discount_end_date" value="<%=
+    discount && discount.end_date
+      ? discount.end_date.toISOString().slice(0, 10)
+      : ''
+  %>">
+
+    <p>
+      종료일을 비워두면 계속 적용됩니다.
+    </p>
+
+
+    <p>할인 메모</p>
+
+    <textarea name="discount_memo" rows="3" cols="40"><%= discount ? (discount.memo || '') : '' %></textarea>
+
+
     <br><br>
 
-    <button type="submit">수정 완료</button>
+    <button type="submit">
+      수정 완료
+    </button>
 
   </form>
 

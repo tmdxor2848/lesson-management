@@ -216,7 +216,25 @@
                   <%= index + 1 %>
                 </td>
                 <td>
+
                   <%= member.member_name %>
+
+                    <% if (member.carry_out_count) { %>
+
+                      <small>
+                        [
+                        →
+                        <% if (Number(member.carry_out_year) !==Number(member.year)) { %>
+                          <%= member.carry_out_year %>년
+                            <% } %>
+
+                              <%= member.carry_out_month %>월
+                                <%= member.carry_out_count %>회
+                                  ]
+                      </small>
+
+                      <% } %>
+
                 </td>
                 <td>
                   <%= member.birth.toISOString().slice(0,10) %>
@@ -259,14 +277,37 @@
 
                 </td>
                 <td>
-                  <a href="/carry-over/<%= member.id %>">
-                    <button type="button">이월</button>
-                  </a>
-                  <form action="/lesson-members/<%= member.id %>/delete" method="POST">
-                    <button type="submit">
-                      명단 제외
+
+                  <a href="/members/<%= member.member_id %>/edit?from=lesson-members">
+                    <button type="button">
+                      회원정보 수정
                     </button>
-                  </form>
+                  </a>
+
+                  <% if (member.carry_out_id) { %>
+
+                    <a href="/carry-over-edit-by-id/<%= member.carry_out_id %>">
+                      <button type="button">
+                        이월 수정
+                      </button>
+                    </a>
+
+                    <% } else { %>
+
+                      <a href="/carry-over/<%= member.id %>">
+                        <button type="button">
+                          이월
+                        </button>
+                      </a>
+
+                      <% } %>
+
+                        <form action="/lesson-members/<%= member.id %>/delete" method="POST">
+                          <button type="submit">
+                            명단 제외
+                          </button>
+                        </form>
+
                 </td>
               </tr>
 

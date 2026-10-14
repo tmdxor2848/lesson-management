@@ -40,10 +40,40 @@ app.get('/rooms', (req, res) => {
 
 // 회원등록 화면
 app.get('/members', (req, res) => {
-  //res.render('members');
-  const sql = 'SELECT * FROM members ORDER BY id DESC';
 
-  db.query(sql, (err, members) => {
+  const keyword = req.query.keyword || '';
+
+  let sql = `
+    SELECT *
+    FROM members
+    WHERE 1 = 1
+  `;
+
+  const params = [];
+
+  if (keyword) {
+
+    sql += `
+      AND (
+        name LIKE ?
+        OR phone LIKE ?
+        OR DATE_FORMAT(birth, '%Y-%m-%d') LIKE ?
+      )
+    `;
+
+    params.push(
+      '%' + keyword + '%',
+      '%' + keyword + '%',
+      '%' + keyword + '%'
+    );
+
+  }
+
+  sql += `
+    ORDER BY id DESC
+  `;
+
+  db.query(sql, params, (err, members) => {
 
     if (err) {
       console.log(err);
@@ -51,7 +81,8 @@ app.get('/members', (req, res) => {
     }
 
     res.render('members', {
-      members: members
+      members: members,
+      keyword: keyword
     });
 
   });
@@ -62,18 +93,54 @@ app.get('/members', (req, res) => {
 app.get('/members/:id/edit', (req, res) => {
 
   const id = req.params.id;
+  const from = req.query.from || 'members';
 
-  const sql = 'SELECT * FROM members WHERE id = ?';
+  const memberSql = `
+    SELECT *
+    FROM members
+    WHERE id = ?
+  `;
 
-  db.query(sql, [id], (err, result) => {
+  db.query(memberSql, [id], (err, memberResult) => {
 
     if (err) {
       console.log(err);
       return res.send('회원 정보 불러오기 실패');
     }
 
-    res.render('member-edit', {
-      member: result[0]
+    if (memberResult.length === 0) {
+      return res.send('회원을 찾을 수 없습니다.');
+    }
+
+
+    const discountSql = `
+      SELECT *
+      FROM member_discount_rules
+      WHERE member_id = ?
+      AND is_active = TRUE
+      ORDER BY id DESC
+      LIMIT 1
+    `;
+
+    db.query(discountSql, [id], (err, discountResult) => {
+
+      if (err) {
+        console.log(err);
+        return res.send('할인 정보 불러오기 실패');
+      }
+
+      res.render('member-edit', {
+
+        member: memberResult[0],
+
+        discount:
+          discountResult.length > 0
+            ? discountResult[0]
+            : null,
+
+        from: from
+      });
+
     });
 
   });
@@ -90,10 +157,27 @@ app.post('/members/:id/edit', (req, res) => {
     gender,
     phone,
     status,
-    memo
+    memo,
+
+    discount_active,
+    discount_name,
+    discount_type,
+    discount_value,
+    discount_start_date,
+    discount_end_date,
+    discount_memo,
+
+    from
   } = req.body;
 
-  const sql = `
+  const redirectUrl =
+    from === 'lesson-members'
+      ? '/lesson-members'
+      : '/members';
+
+
+  // 1. 회원 기본정보 수정
+  const memberSql = `
     UPDATE members
     SET
       name = ?,
@@ -106,7 +190,7 @@ app.post('/members/:id/edit', (req, res) => {
   `;
 
   db.query(
-    sql,
+    memberSql,
     [
       name,
       birth,
@@ -123,9 +207,155 @@ app.post('/members/:id/edit', (req, res) => {
         return res.send('회원 수정 실패');
       }
 
-      console.log('회원 수정 성공!');
 
-      res.redirect('/members');
+      // 2. 상시 할인 체크가 해제되어 있다면
+      if (!discount_active) {
+
+        const disableSql = `
+          UPDATE member_discount_rules
+          SET is_active = FALSE
+          WHERE member_id = ?
+          AND is_active = TRUE
+        `;
+
+        db.query(disableSql, [id], (err, result) => {
+
+          if (err) {
+            console.log(err);
+            return res.send('할인 설정 해제 실패');
+          }
+
+          console.log('회원 수정 성공 / 상시 할인 없음');
+
+          return res.redirect(redirectUrl);
+
+        });
+
+        return;
+      }
+
+
+      // 3. 상시 할인을 체크했는데 필수정보가 없는 경우
+      if (
+        !discount_name ||
+        !discount_type ||
+        !discount_value ||
+        !discount_start_date
+      ) {
+
+        return res.send('상시 할인 정보를 모두 입력해주세요.');
+
+      }
+
+
+      // 4. 기존 활성 할인 확인
+      const findDiscountSql = `
+        SELECT *
+        FROM member_discount_rules
+        WHERE member_id = ?
+        AND is_active = TRUE
+        ORDER BY id DESC
+        LIMIT 1
+      `;
+
+      db.query(findDiscountSql, [id], (err, rows) => {
+
+        if (err) {
+          console.log(err);
+          return res.send('할인 정보 확인 실패');
+        }
+
+
+        // 기존 상시 할인이 있는 경우 → 수정
+        if (rows.length > 0) {
+
+          const discountId = rows[0].id;
+
+          const updateDiscountSql = `
+            UPDATE member_discount_rules
+            SET
+              discount_name = ?,
+              discount_type = ?,
+              discount_value = ?,
+              start_date = ?,
+              end_date = ?,
+              memo = ?,
+              is_active = TRUE
+            WHERE id = ?
+          `;
+
+          db.query(
+            updateDiscountSql,
+            [
+              discount_name,
+              discount_type,
+              discount_value,
+              discount_start_date,
+              discount_end_date || null,
+              discount_memo,
+              discountId
+            ],
+            (err, result) => {
+
+              if (err) {
+                console.log(err);
+                return res.send('할인 정보 수정 실패');
+              }
+
+              console.log('회원 + 상시 할인 수정 성공!');
+
+              res.redirect(redirectUrl);
+
+            }
+          );
+
+        } else {
+
+          // 기존 할인이 없는 경우 → 새로 등록
+          const insertDiscountSql = `
+            INSERT INTO member_discount_rules
+            (
+              member_id,
+              discount_name,
+              discount_type,
+              discount_value,
+              start_date,
+              end_date,
+              is_active,
+              memo
+            )
+            VALUES (?, ?, ?, ?, ?, ?, TRUE, ?)
+          `;
+
+          db.query(
+            insertDiscountSql,
+            [
+              id,
+              discount_name,
+              discount_type,
+              discount_value,
+              discount_start_date,
+              discount_end_date || null,
+              discount_memo
+            ],
+            (err, result) => {
+
+              if (err) {
+                console.log(err);
+                return res.send('할인 정보 등록 실패');
+              }
+
+              console.log('회원 + 상시 할인 등록 성공!');
+
+              res.redirect(redirectUrl);
+
+            }
+          );
+
+        }
+
+      });
+
     }
   );
 
@@ -286,7 +516,7 @@ app.post('/members', (req, res) => {
       console.log('회원 등록 성공');
       console.log(result);
 
-      res.redirect('/members');
+      res.redirect(redirectUrl);
     }
   );
 });
@@ -336,6 +566,50 @@ app.get('/lesson-members', (req, res) => {
       AND co.to_year = lm.year
       AND co.to_month = lm.month
     ) AS carry_count
+     ,
+    (
+      SELECT co.id
+      FROM carry_overs co
+      WHERE co.member_id = lm.member_id
+      AND co.lesson_room_id = lm.lesson_room_id
+      AND co.from_year = lm.year
+      AND co.from_month = lm.month
+      ORDER BY co.id DESC
+      LIMIT 1
+    ) AS carry_out_id,
+
+    (
+      SELECT co.carry_count
+      FROM carry_overs co
+      WHERE co.member_id = lm.member_id
+      AND co.lesson_room_id = lm.lesson_room_id
+      AND co.from_year = lm.year
+      AND co.from_month = lm.month
+      ORDER BY co.id DESC
+      LIMIT 1
+    ) AS carry_out_count,
+
+    (
+      SELECT co.to_year
+      FROM carry_overs co
+      WHERE co.member_id = lm.member_id
+      AND co.lesson_room_id = lm.lesson_room_id
+      AND co.from_year = lm.year
+      AND co.from_month = lm.month
+      ORDER BY co.id DESC
+      LIMIT 1
+    ) AS carry_out_year,
+
+    (
+      SELECT co.to_month
+      FROM carry_overs co
+      WHERE co.member_id = lm.member_id
+      AND co.lesson_room_id = lm.lesson_room_id
+      AND co.from_year = lm.year
+      AND co.from_month = lm.month
+      ORDER BY co.id DESC
+      LIMIT 1
+    ) AS carry_out_month
 
     FROM lesson_members lm
 
@@ -1065,6 +1339,14 @@ app.get('/carry-overs', (req, res) => {
   );
 
 });
+
+
+
+
+
+
+
+
 
 
 
