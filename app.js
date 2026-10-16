@@ -2,7 +2,7 @@
 const express = require('express');
 const db = require('./db');
 
-// Express 를 이용해 웹 서버 만들가
+// Express를 이용해 웹 서버 만들기
 const app = express();
 
 app.set('view engine', 'ejs');
@@ -13,6 +13,172 @@ app.use(express.urlencoded({ extended: true }));
 const PORT = 3000;
 
 // 브라우저에서 http://localhost:3000/--- 로 들어오면 무엇을 보여줄지 정함
+
+function createPaymentForLessonMember(
+  lessonMemberId,
+  memberId,
+  lessonRoomId,
+  year,
+  month,
+  callback
+) {
+
+  // 1. 레슨방 기본금액 확인
+  const roomSql = `
+    SELECT lesson_fee
+    FROM lesson_rooms
+    WHERE id = ?
+  `;
+
+  db.query(roomSql, [lessonRoomId], (err, roomRows) => {
+
+    if (err) {
+      return callback(err);
+    }
+
+    if (roomRows.length === 0) {
+      return callback(new Error('레슨방을 찾을 수 없습니다.'));
+    }
+
+    const baseAmount = Number(roomRows[0].lesson_fee);
+
+
+    // 해당 레슨 월의 1일을 기준으로 할인 유효 여부 확인
+    const lessonDate =
+      year + '-' +
+      String(month).padStart(2, '0') +
+      '-01';
+
+
+    // 2. 회원 상시 할인 확인
+    const discountSql = `
+      SELECT *
+      FROM member_discount_rules
+
+      WHERE member_id = ?
+      AND is_active = TRUE
+
+      AND start_date <= ?
+
+      AND (
+        end_date IS NULL
+        OR end_date >= ?
+      )
+
+      ORDER BY id DESC
+      LIMIT 1
+    `;
+
+    db.query(
+      discountSql,
+      [
+        memberId,
+        lessonDate,
+        lessonDate
+      ],
+      (err, discountRows) => {
+
+        if (err) {
+          return callback(err);
+        }
+
+
+        let permanentDiscountAmount = 0;
+        let discountRuleId = null;
+        let discountReason = null;
+
+
+        // 3. 상시 할인이 존재하면 금액 계산
+        if (discountRows.length > 0) {
+
+          const discount = discountRows[0];
+
+          discountRuleId = discount.id;
+          discountReason = discount.discount_name;
+
+          const discountValue =
+            Number(discount.discount_value);
+
+
+          if (discount.discount_type === 'PERCENT') {
+
+            permanentDiscountAmount =
+              Math.round(
+                baseAmount *
+                discountValue /
+                100
+              );
+
+          } else if (
+            discount.discount_type === 'FIXED'
+          ) {
+
+            permanentDiscountAmount =
+              discountValue;
+
+          }
+
+        }
+
+
+        // 할인금액이 레슨비보다 커지는 것을 방지
+        permanentDiscountAmount =
+          Math.min(
+            permanentDiscountAmount,
+            baseAmount
+          );
+
+
+        const finalAmount =
+          baseAmount -
+          permanentDiscountAmount;
+
+
+        // 4. 결제 예정정보 생성
+        const paymentSql = `
+          INSERT INTO payments
+          (
+            lesson_member_id,
+            base_amount,
+            permanent_discount_amount,
+            extra_discount_amount,
+            final_amount,
+            paid_amount,
+            refund_amount,
+            payment_status,
+            discount_rule_id,
+            discount_reason
+          )
+          VALUES (?, ?, ?, 0, ?, 0, 0, 'UNPAID', ?, ?)
+        `;
+
+        db.query(
+          paymentSql,
+          [
+            lessonMemberId,
+            baseAmount,
+            permanentDiscountAmount,
+            finalAmount,
+            discountRuleId,
+            discountReason
+          ],
+          (err, result) => {
+
+            if (err) {
+              return callback(err);
+            }
+
+            callback(null, result);
+
+          }
+        );
+
+      }
+    );
+
+  });
+
+}
 
 // 메인화면
 app.get('/', (req, res) => {
@@ -31,7 +197,6 @@ app.get('/rooms', (req, res) => {
       return res.send('레슨방 목록 불러오기 실패');
     }
 
-    console.log(rooms);
     res.render('rooms', {
       rooms: rooms
     });
@@ -478,8 +643,8 @@ app.post('/rooms/:id/edit', (req, res) => {
       console.log('레슨방 수정 성공');
       res.redirect('/rooms');
     }
-  )
-})
+  );
+});
 
 
 // 회원 등록 코드
@@ -514,9 +679,7 @@ app.post('/members', (req, res) => {
         return res.send('회원등록 실패');
       }
       console.log('회원 등록 성공');
-      console.log(result);
-
-      res.redirect(redirectUrl);
+      res.redirect('/members');
     }
   );
 });
@@ -699,6 +862,8 @@ app.post('/lesson-members', (req, res) => {
     member_id
   } = req.body;
 
+
+  // 1. 같은 달 / 같은 레슨방에 이미 등록되어 있는지 확인
   const checkSql = `
     SELECT *
     FROM lesson_members
@@ -707,6 +872,7 @@ app.post('/lesson-members', (req, res) => {
     AND year = ?
     AND month = ?
   `;
+
 
   db.query(
     checkSql,
@@ -723,15 +889,21 @@ app.post('/lesson-members', (req, res) => {
         return res.send('중복 확인 실패');
       }
 
+
       if (result.length > 0) {
-        return res.send('이미 해당 월의 레슨방에 등록된 회원입니다.');
+        return res.send(
+          '이미 해당 월의 레슨방에 등록된 회원입니다.'
+        );
       }
 
+
+      // 2. 레슨 회원 등록
       const insertSql = `
         INSERT INTO lesson_members
         (lesson_room_id, member_id, year, month)
         VALUES (?, ?, ?, ?)
       `;
+
 
       db.query(
         insertSql,
@@ -748,26 +920,64 @@ app.post('/lesson-members', (req, res) => {
             return res.send('레슨 회원 등록 실패');
           }
 
-          const updateStatusSql = `
-            UPDATE members
-            SET status = 'ACTIVE'
-            WHERE id = ?
-            AND status = 'PAUSED'
-          `;
 
-          db.query(
-            updateStatusSql,
-            [member_id],
-            (err, result) => {
+          // 방금 생성된 lesson_members의 id
+          const lessonMemberId = result.insertId;
+
+
+          // 3. 결제 예정정보 자동 생성
+          createPaymentForLessonMember(
+            lessonMemberId,
+            member_id,
+            lesson_room_id,
+            year,
+            month,
+            (err) => {
 
               if (err) {
                 console.log(err);
-                return res.send('회원 상태 변경 실패');
+                return res.send(
+                  '결제 예정정보 생성 실패'
+                );
               }
 
-              console.log('레슨 회원 등록 성공!');
+              console.log(
+                '결제 예정정보 자동 생성 성공!'
+              );
 
-              res.redirect('/lesson-members');
+
+              // 4. 휴식 회원이면 ACTIVE로 변경
+              const updateStatusSql = `
+                UPDATE members
+                SET status = 'ACTIVE'
+                WHERE id = ?
+                AND status = 'PAUSED'
+              `;
+
+
+              db.query(
+                updateStatusSql,
+                [member_id],
+                (err, result) => {
+
+                  if (err) {
+                    console.log(err);
+                    return res.send(
+                      '회원 상태 변경 실패'
+                    );
+                  }
+
+
+                  console.log(
+                    '레슨 회원 등록 성공!'
+                  );
+
+                  // 5. 모든 작업이 끝난 뒤 이동
+                  res.redirect('/lesson-members');
+
+                }
+              );
+
             }
           );
 
@@ -1088,7 +1298,7 @@ app.post('/carry-over/:id', (req, res) => {
 });
 
 
-// 이월 정보 블러오기
+// 이월 정보 불러오기
 app.get('/carry-over-edit/:id', (req, res) => {
 
   const lessonMemberId = req.params.id;
@@ -1342,15 +1552,7 @@ app.get('/carry-overs', (req, res) => {
 
 
 
-
-
-
-
-
-
-
-
 // 서버를 켜는 코드
 app.listen(PORT, () => {
-  console.log(`서버 실행중: http: localhost:${PORT} `)
+  console.log(`서버 실행중: http://localhost:${PORT}`);
 });
